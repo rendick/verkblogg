@@ -1,6 +1,6 @@
 verkblogg is a utility for optimizing blogging
 
-Beforehand, you should create a folder with the files public/index.html and public/posts.html (you can change the HTML content, but without deleting the text ${posts}, ${post} and ${title}).
+Beforehand, you should create a folder with the files public/index.html and public/article.html (you can change the HTML content, but without deleting the text ${posts}, ${post} and ${title}).
 
 After running verkblogg -n, the user will enter information (title and body text) that will later be sent to the posts file in the format "Title;body text;path". The code will then parse posts (DB of all posts) and put the information into index.html and posts/{title}.html, thus creating/updating them.
 
