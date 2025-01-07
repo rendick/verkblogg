@@ -1,4 +1,4 @@
-//	verkblogg
+//	verkblogg is a utility for optimizing blogging
 //	Copyright (C) 2025 Constantin AKA rendick.
 
 //	This program is free software: you can redistribute it and/or modify
@@ -14,55 +14,56 @@
 //	You should have received a copy of the GNU General Public License
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-
 #pragma once
 
 #include <stdio.h>
 #include <string.h>
 
-int replaceAll(char *source, char *textToReplace, char *replacementText){
-	char* substring_source = strstr(source, textToReplace);
+int replaceAll(char * source, char * textToReplace, char * replacementText) {
+    char * substring_source = strstr(source, textToReplace);
 
-	if (substring_source == NULL) {
-		return 0;
-	}
+    if (substring_source == NULL) {
+        return 0;
+    }
 
-	memmove(
-			substring_source + strlen(replacementText), 
-			substring_source + strlen(textToReplace), 
-			strlen(substring_source) - strlen(textToReplace) + 1
-			);
+    memmove(
+        substring_source + strlen(replacementText),
+        substring_source + strlen(textToReplace),
+        strlen(substring_source) - strlen(textToReplace) + 1
+    );
 
-	memcpy(substring_source, replacementText, strlen(replacementText));
+    memcpy(substring_source, replacementText, strlen(replacementText));
 
-	return 0;
+    return 0;
 }
 
-int split(char *source, char *symbol) {
-	char* token = strtok(source, symbol);
+int split(char * source, char * symbol) {
+    char * token = strtok(source, symbol);
 
-	while(token != NULL) {
-		printf("%s \n", token);
-		token = strtok(NULL, "\n");
-	}
+    while (token != NULL) {
+        printf("%s \n", token);
+        token = strtok(NULL, "\n");
+    }
 
-	return 0;
+    return 0;
 }
 
-int input(char *title, char *var, int amount) {
-	printf("%s: ", title);
-	if(fgets(var, amount, stdin) != NULL) {
-		var[strcspn(var, "\n")] = '\0';
-		printf("%s\n", var);
-	}
-	return 0;
+int input(char * title, char *
+    var, int amount) {
+    printf("%s: ", title);
+    if (fgets(var, amount, stdin) != NULL) {
+        var [strcspn(var, "\n")] = '\0';
+        printf("%s\n",
+            var);
+    }
+    return 0;
 }
 
-int openFile(FILE **file, char *path, char *mode) {
-  *file = fopen(path, mode);
-  if (file == NULL) {
-	  perror("Error opening file");
-	  return 1;
-  }
-  return 0;
+int openFile(FILE ** file, char * path, char * mode) {
+    * file = fopen(path, mode);
+    if (file == NULL) {
+        perror("Error opening file");
+        return 1;
+    }
+    return 0;
 }

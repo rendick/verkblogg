@@ -1,10 +1,10 @@
 # Compiled
 
 index.html
-post/
+artiles/
 verkblogg
-posts
 verkblogg.db
+verkblogg.conf
 
 # Prerequisites
 *.d
