@@ -15,19 +15,19 @@
 //	along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <ctype.h>
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <dirent.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "./utilities.h"
 
 #define COLOR_BOLD "\e[1m"
 #define COLOR_OFF "\e[m"
 
-#define MAX_LINE 256
+#define MAX_LINE 512
 
 int createPost();
 int parsePostsDb();
@@ -37,370 +37,384 @@ int updatePostsFiles();
 // Configuration file parser
 
 typedef struct {
-    char indexpath[MAX_LINE];
-    char articlepath[MAX_LINE];
-    char compiledpath[MAX_LINE];
-    char dbpath[MAX_LINE];
-}
-Config;
+  char indexpath[MAX_LINE];
+  char articlepath[MAX_LINE];
+  char compiledpath[MAX_LINE];
+  char dbpath[MAX_LINE];
+} Config;
 
 Config config;
 
-void trim_newline(char * str) {
-    size_t len = strlen(str);
-    if (len > 0 && str[len - 1] == '\n') {
-        str[len - 1] = '\0';
-    }
+void trim_newline(char* str) {
+  size_t len = strlen(str);
+  if (len > 0 && str[len - 1] == '\n') {
+    str[len - 1] = '\0';
+  }
 }
 
-int parse_config(const char * filename, Config * config) {
-    FILE * openConfigFile = fopen(filename, "r");
-    if (!openConfigFile) {
-        perror("Error opening file");
-        return 1;
+int parse_config(const char* filename, Config* config) {
+  FILE* openConfigFile = fopen(filename, "r");
+  if (!openConfigFile) {
+    // perror("Error opening file");
+    return 1;
+  }
+
+  char line[MAX_LINE];
+
+  while (fgets(line, sizeof(line), openConfigFile)) {
+    trim_newline(line);
+
+    char* key = strtok(line, " =");
+    char* value = strtok(NULL, " = ");
+
+    if (key && value) {
+      if (strcmp(key, "indexpath") == 0) {
+        strcpy(config->indexpath, value);
+      } else if (strcmp(key, "articlepath") == 0) {
+        strcpy(config->articlepath, value);
+      } else if (strcmp(key, "compiledpath") == 0) {
+        strcpy(config->compiledpath, value);
+      } else if (strcmp(key, "dbpath") == 0) {
+        strcpy(config->dbpath, value);
+      }
     }
+  }
 
-    char line[MAX_LINE];
+  fclose(openConfigFile);
 
-    while (fgets(line, sizeof(line), openConfigFile)) {
-        trim_newline(line);
-
-        char * key = strtok(line, " =");
-        char * value = strtok(NULL, " = ");
-
-        if (key && value) {
-            if (strcmp(key, "indexpath") == 0) {
-                strcpy(config -> indexpath, value);
-            } else if (strcmp(key, "articlepath") == 0) {
-                strcpy(config -> articlepath, value);
-            } else if (strcmp(key, "compiledpath") == 0) {
-                strcpy(config -> compiledpath, value);
-            } else if (strcmp(key, "dbpath") == 0) {
-                strcpy(config -> dbpath, value);
-            }
-        }
-    }
-
-    fclose(openConfigFile);
-
-    return 0;
+  return 0;
 }
 
 // Article organization
 
 int createPost() {
-    char title[30], title_tl[30];
-    char main_content[100];
+  char title[30], title_tl[30];
+  char main_content[100];
 
-    input("Enter the title", title, 30);
-    input("Enter the main text", main_content, 100);
+  input("Enter the title", title, 30);
+  input("Enter the main text", main_content, 100);
 
-    for (int i = 0; i < sizeof(title) - 1 && title[i] != '\0'; i++) {
-        title_tl[i] = tolower(title[i]);
-    }
+  for (int i = 0; i < (int)sizeof(title) - 1 && title[i] != '\0'; i++) {
+    title_tl[i] = tolower(title[i]);
+  }
+  title_tl[sizeof(title_tl) - 1] = '\0';
 
-    replaceAll(title_tl, " ", "-");
+  replaceAll(title_tl, " ", "-");
 
-    FILE * wttf;
-    if (openFile( & wttf, config.dbpath, "a") != 0) {
-        return 1;
-    }
+  FILE* wttf;
+  if (openFile(&wttf, config.dbpath, "a") != 0) {
+    return 1;
+  }
 
-    fprintf(wttf, "%s;%s;%s\n", title, main_content, title_tl);
-    fclose(wttf);
+    char dateBuffer[11];
+	currentTime(dateBuffer, sizeof(dateBuffer));
 
-    parsePostsDb();
+  fprintf(wttf, "%s;%s;%s;%s\n", title, main_content, title_tl, dateBuffer);
+  fclose(wttf);
 
-    return 0;
+  parsePostsDb();
+
+  return 0;
 }
 
 int parsePostsDb() {
-    if (access(config.dbpath, 0) != 0) {
-        printf("DB file is missing. Re-run command to create it.\n");
-        exit(1);
+  if (access(config.dbpath, 0) != 0) {
+    printf("DB file is missing. Re-run command to create it.\n");
+    exit(1);
+  }
+
+  FILE* pfpn;
+  if (openFile(&pfpn, config.dbpath, "r") != 0) {
+    return 1;
+  }
+
+  char buffer[256];
+  char* lines[100] = {NULL};
+
+  int x = 0;
+  while (fgets(buffer, sizeof(buffer), pfpn)) {
+    lines[x] = strdup(buffer);
+    x++;
+  }
+  fclose(pfpn);
+
+  char allPosts[5000] = "";
+
+  for (int i = 0; i < x; i++) {
+    replaceAll(lines[i], "\n", "");
+
+    char* splitted_title = NULL;
+    char* splitted_main = NULL;
+	char* splitted_date = NULL;
+    char* splitted_path = NULL;
+
+    char* splitDb = strtok(lines[i], ";");
+    int idx = 0;
+
+    while (splitDb != NULL) {
+      if (idx == 0) {
+        splitted_title = strdup(splitDb);
+      } else if (idx == 1) {
+        splitted_main = strdup(splitDb);
+      } else if (idx == 2) {
+        splitted_path = strdup(splitDb);
+      } else if (idx == 3) {
+		  splitted_date = strdup(splitDb);
+	  }
+      splitDb = strtok(NULL, ";");
+      idx++;
     }
 
-    FILE * pfpn;
-    if (openFile( & pfpn, config.dbpath, "r") != 0) {
-        return 1;
+    if (splitted_title && splitted_path) {
+      char articleInformation[1024];
+      snprintf(articleInformation, sizeof(articleInformation),
+               "<li><a href='./%s/%s.html'>%s</a> <i>%s</i></li>\n", config.compiledpath,
+               splitted_path, splitted_title, splitted_date);
+      strncat(allPosts, articleInformation,
+              sizeof(allPosts) - strlen(allPosts) - 1);
     }
 
-    char buffer[256];
-    char * lines[100] = {
-        NULL
-    };
+    free(splitted_title);
+    free(splitted_main);
+    free(splitted_path);
+	free(splitted_date);
+    free(lines[i]);
+  }
 
-    int x = 0;
-    while (fgets(buffer, sizeof(buffer), pfpn)) {
-        lines[x] = strdup(buffer);
-        x++;
-    }
-    fclose(pfpn);
-
-    char allPosts[5000] = "";
-
-    for (int i = 0; i < x; i++) {
-        replaceAll(lines[i], "\n", "");
-
-        char * splitted_title = NULL;
-        char * splitted_main = NULL;
-        char * splitted_path = NULL;
-
-        char * splitDb = strtok(lines[i], ";");
-        int idx = 0;
-
-        while (splitDb != NULL) {
-            if (idx == 0) {
-                splitted_title = strdup(splitDb);
-            } else if (idx == 1) {
-                splitted_main = strdup(splitDb);
-            } else if (idx == 2) {
-                splitted_path = strdup(splitDb);
-            }
-            splitDb = strtok(NULL, ";");
-            idx++;
-        }
-
-        if (splitted_title && splitted_path) {
-            char articleInformation[256];
-            snprintf(articleInformation, sizeof(articleInformation),
-                "<li><a href='./%s/%s.html'>%s</a></li>\n", config.compiledpath,
-                splitted_path, splitted_title);
-            strncat(allPosts, articleInformation,
-                sizeof(allPosts) - strlen(allPosts) - 1);
-        }
-
-        free(splitted_title);
-        free(splitted_main);
-        free(splitted_path);
-        free(lines[i]);
-    }
-
-    return updateIndexFile(allPosts);
+  return updateIndexFile(allPosts);
 }
 
-int updateIndexFile(char * info) {
-    char indexContent[5000];
-    char updatedIndexContent[5000] = "";
+int updateIndexFile(char* info) {
+  char indexContent[5000];
+  char updatedIndexContent[5000] = "";
 
-    FILE * openIndexFile;
-    if (openFile( & openIndexFile, config.indexpath, "r") != 0) {
-        return 1;
-    }
+  FILE* openIndexFile;
+  if (openFile(&openIndexFile, config.indexpath, "r") != 0) {
+    return 1;
+  }
 
-    while (fgets(indexContent, 1000, openIndexFile)) {
-        replaceAll(indexContent, "${indexTitle}", info);
-        strncat(updatedIndexContent, indexContent,
+  while (fgets(indexContent, 1000, openIndexFile)) {
+    replaceAll(indexContent, "${indexTitle}", info);
+    strncat(updatedIndexContent, indexContent,
             sizeof(updatedIndexContent) - strlen(updatedIndexContent) - 1);
-    }
+  }
 
-    fclose(openIndexFile);
+  fclose(openIndexFile);
 
-    FILE * writeUpdatedIndexFile;
-    if (openFile( & writeUpdatedIndexFile, "index.html", "w") != 0) {
-        return 1;
-    }
+  FILE* writeUpdatedIndexFile;
+  if (openFile(&writeUpdatedIndexFile, "index.html", "w") != 0) {
+    return 1;
+  }
 
-    fprintf(writeUpdatedIndexFile, "%s", updatedIndexContent);
+  fprintf(writeUpdatedIndexFile, "%s", updatedIndexContent);
 
-    fclose(writeUpdatedIndexFile);
+  fclose(writeUpdatedIndexFile);
 
-    return updatePostsFiles();
+  return updatePostsFiles();
 }
 
 int updatePostsFiles() {
-    DIR * openPostDir = opendir(config.compiledpath);
-    if (!(openPostDir)) {
-        mkdir(config.compiledpath, 0777);
+  DIR* openPostDir = opendir(config.compiledpath);
+  if (!(openPostDir)) {
+    mkdir(config.compiledpath, 0777);
+  }
+
+  FILE* pfpn;
+  if (openFile(&pfpn, config.dbpath, "r") != 0) {
+    return 1;
+  }
+
+  char buffer[256];
+  char* lines[100] = {NULL};
+
+  int x = 0;
+  while (fgets(buffer, sizeof(buffer), pfpn)) {
+    lines[x] = strdup(buffer);
+    x++;
+  }
+  fclose(pfpn);
+
+  for (int i = 0; i < x; i++) {
+    replaceAll(lines[i], "\n", "");
+
+    char* splitted_title = NULL;
+    char* splitted_main = NULL;
+    char* splitted_path = NULL;
+	char* splitted_date = NULL;
+
+    char* splitDb = strtok(lines[i], ";");
+    int idx = 0;
+
+    while (splitDb != NULL) {
+      if (idx == 0) {
+        splitted_title = strdup(splitDb);
+      } else if (idx == 1) {
+        splitted_main = strdup(splitDb);
+      } else if (idx == 2) {
+        splitted_path = strdup(splitDb);
+      } else if (idx == 3) {
+		  splitted_date = strdup(splitDb);
+	  }
+      splitDb = strtok(NULL, ";");
+      idx++;
     }
 
-    FILE * pfpn;
-    if (openFile( & pfpn, config.dbpath, "r") != 0) {
+    if (splitted_title && splitted_path && splitted_main && splitted_date) {
+      FILE* tpl;
+      if (openFile(&tpl, config.articlepath, "r") != 0) {
         return 1;
+      }
+
+      char templateContent[5000] = "";
+      char line[256];
+      while (fgets(line, sizeof(line), tpl)) {
+        strncat(templateContent, line,
+                sizeof(templateContent) - strlen(templateContent) - 1);
+      }
+      fclose(tpl);
+
+      replaceAll(templateContent, "${indexTitle}", splitted_title);
+      replaceAll(templateContent, "${articleTitle}", splitted_title);
+      replaceAll(templateContent, "${articleTitle}", splitted_title);
+      replaceAll(templateContent, "${main}", splitted_main);
+      replaceAll(templateContent, "${date}", splitted_date);
+
+      char filePath[1024];
+      snprintf(filePath, sizeof(filePath), "%s/%s.html", config.compiledpath,
+               splitted_path);
+
+      FILE* postFile;
+      if (openFile(&postFile, filePath, "w") != 0) {
+        return 1;
+      }
+
+      fprintf(postFile, "%s", templateContent);
+      fclose(postFile);
     }
 
-    char buffer[256];
-    char * lines[100] = {
-        NULL
-    };
+    free(splitted_title);
+    free(splitted_main);
+    free(splitted_path);
+    free(lines[i]);
+  }
 
-    int x = 0;
-    while (fgets(buffer, sizeof(buffer), pfpn)) {
-        lines[x] = strdup(buffer);
-        x++;
-    }
-    fclose(pfpn);
-
-    for (int i = 0; i < x; i++) {
-        replaceAll(lines[i], "\n", "");
-
-        char * splitted_title = NULL;
-        char * splitted_main = NULL;
-        char * splitted_path = NULL;
-
-        char * splitDb = strtok(lines[i], ";");
-        int idx = 0;
-
-        while (splitDb != NULL) {
-            if (idx == 0) {
-                splitted_title = strdup(splitDb);
-            } else if (idx == 1) {
-                splitted_main = strdup(splitDb);
-            } else if (idx == 2) {
-                splitted_path = strdup(splitDb);
-            }
-            splitDb = strtok(NULL, ";");
-            idx++;
-        }
-
-        if (splitted_title && splitted_path && splitted_main) {
-            FILE * tpl;
-            if (openFile( & tpl, config.articlepath, "r") != 0) {
-                return 1;
-            }
-
-            char templateContent[5000] = "";
-            char line[256];
-            while (fgets(line, sizeof(line), tpl)) {
-                strncat(templateContent, line,
-                    sizeof(templateContent) - strlen(templateContent) - 1);
-            }
-            fclose(tpl);
-
-            replaceAll(templateContent, "${indexTitle}", splitted_title);
-            replaceAll(templateContent, "${articleTitle}", splitted_title);
-            replaceAll(templateContent, "${articleTitle}", splitted_title);
-
-            replaceAll(templateContent, "${main}", splitted_main);
-
-            char filePath[256];
-            snprintf(filePath, sizeof(filePath), "%s/%s.html", config.compiledpath, splitted_path);
-
-            FILE * postFile;
-            if (openFile( & postFile, filePath, "w") != 0) {
-                return 1;
-            }
-
-            fprintf(postFile, "%s", templateContent);
-            fclose(postFile);
-        }
-
-        free(splitted_title);
-        free(splitted_main);
-        free(splitted_path);
-        free(lines[i]);
-    }
-
-    return 0;
+  return 0;
 }
 
 int checkPosts() {
-    if (access(config.dbpath, 0) != 0) {
-        printf("DB file is missing.\n");
-        exit(1);
+  if (access(config.dbpath, 0) != 0) {
+    printf("DB file is missing.\n");
+    exit(1);
+  }
+
+  FILE* openPostsFile;
+  if (openFile(&openPostsFile, config.dbpath, "r") != 0) {
+    return 1;
+  }
+
+  char buffer[256];
+  char* lines[100] = {NULL};
+
+  int x = 0;
+  while (fgets(buffer, sizeof(buffer), openPostsFile)) {
+    lines[x] = strdup(buffer);
+    x++;
+  }
+
+  fclose(openPostsFile);
+
+  for (int i = 0; i < x; i++) {
+    replaceAll(lines[i], "\n", "");
+
+    char* splitted_title = NULL;
+    char* splitted_main = NULL;
+    char* splitted_path = NULL;
+	char* splitted_date = NULL;
+
+    int idx = 0;
+
+    char* token = strtok(lines[i], ";");
+
+    while (token != NULL) {
+      if (idx == 0) {
+        splitted_title = strdup(token);
+      } else if (idx == 1) {
+        splitted_main = strdup(token);
+      } else if (idx == 2) {
+        splitted_path = strdup(token);
+      } else if (idx == 3) {
+		  splitted_date = strdup(token);
+	  }
+
+      token = strtok(NULL, ";");
+      idx++;
     }
 
-    FILE * openPostsFile;
-    if (openFile( & openPostsFile, config.dbpath, "r") != 0) {
-        return 1;
-    }
+    printf("%d. %s%s%s - %s - %s/%s.html - %s\n", i + 1, COLOR_BOLD, splitted_title,
+           COLOR_OFF, splitted_main, config.compiledpath, splitted_path, splitted_date);
+  }
 
-    char buffer[256];
-    char * lines[100] = {
-        NULL
-    };
-
-    int x = 0;
-    while (fgets(buffer, sizeof(buffer), openPostsFile)) {
-        lines[x] = strdup(buffer);
-        x++;
-    }
-
-    fclose(openPostsFile);
-
-    for (int i = 0; i < x; i++) {
-        replaceAll(lines[i], "\n", "");
-
-        char * splitted_title = NULL;
-        char * splitted_main = NULL;
-        char * splitted_path = NULL;
-
-        int idx = 0;
-
-        char * token = strtok(lines[i], ";");
-
-        while (token != NULL) {
-            if (idx == 0) {
-                splitted_title = strdup(token);
-            } else if (idx == 1) {
-                splitted_main = strdup(token);
-            } else if (idx == 2) {
-                splitted_path = strdup(token);
-            }
-
-            token = strtok(NULL, ";");
-            idx++;
-        }
-
-        printf("%d. %s%s%s - %s - %s/%s.html\n", i, COLOR_BOLD,
-            splitted_title, COLOR_OFF, splitted_main, config.compiledpath, splitted_path);
-    }
-
-    return 0;
+  return 0;
 }
 
 int generateConfigFile() {
-    if (access("verkblogg.conf", 0) == 0) {
-        printf("Configuration file exists! Exiting...\n");
-        exit(1);
-    }
+  if (access("verkblogg.conf", 0) == 0) {
+    printf("Configuration file exists! Exiting...\n");
+    exit(1);
+  }
 
-    FILE * configFile;
-    if (openFile( & configFile, "verkblogg.conf", "a") != 0) {
-        return 1;
-    }
+  FILE* configFile;
+  if (openFile(&configFile, "verkblogg.conf", "a") != 0) {
+    return 1;
+  }
 
-    fprintf(configFile, "indexpath = \narticlepath = \ncompiledpath = \ndbpath = \n");
-    fclose(configFile);
+  fprintf(configFile,
+          "indexpath = public/index.html\narticlepath = public/article.html\ncompiledpath = articles\ndbpath = verkblogg.db\n");
+  fclose(configFile);
 
-    printf("The configuration file was successfully generated.\n");
+  printf(
+      "The configuration file was successfully generated.\nDo not forget to "
+      "fill it with the needed information!\n");
 
-    exit(0);
+  exit(0);
 }
 
-int main(int argc, char * argv[]) {
-    if (parse_config("verkblogg.conf", & config) != 0 && strcmp(argv[1], "-c") && strcmp(argv[1], "-h") && strcmp(argv[1], "-v")) {
-        printf(
-            "Configuraion file does not exist!\nTry 'verkblogg -h for more information\n"
-        );
-        exit(1);
-    }
+int main(int argc, char* argv[]) {
+  if (parse_config("verkblogg.conf", &config) != 0 && strcmp(argv[1], "-c") &&
+      strcmp(argv[1], "-h") && strcmp(argv[1], "-v")) {
+    printf(
+        "Configuraion file does not exist!\nTry 'verkblogg -h for more "
+        "information\n");
+    exit(1);
+  }
 
-    if (argc < 2) {
-        printf("Usage: %s -n|-p|-c|-h|-v\nTry '-h' for more information.\n", argv[0]);
-        return 1;
-    }
+  if (argc < 2) {
+    printf("Usage: %s -n|-p|-c|-h|-v\nTry '-h' for more information.\n",
+           argv[0]);
+    return 1;
+  }
 
-    if (!strcmp(argv[1], "-n")) {
-        createPost();
-    } else if (!strcmp(argv[1], "-p")) {
-        checkPosts();
-    } else if (!strcmp(argv[1], "-c")) {
-        generateConfigFile();
-    } else if (!strcmp(argv[1], "-h")) {
+  if (!strcmp(argv[1], "-n")) {
+    createPost();
+  } else if (!strcmp(argv[1], "-p")) {
+    checkPosts();
+  } else if (!strcmp(argv[1], "-c")) {
+    generateConfigFile();
+  } else if (!strcmp(argv[1], "-h")) {
 
-        printf("Usage: verkblogg [OPTION]\n"
-            "  -n\tfor creating articles\n"
-            "  -p\tfor viewing DB\n"
-            "  -c\tfor generating configuration file\n\n"
-            "  -h\tdisplay help menu\n"
-            "  -v\tdisplay current version\n");
+    printf(
+        "Usage: verkblogg [OPTION]\n"
+        "  -n\tfor creating articles\n"
+        "  -p\tfor viewing DB\n"
+        "  -c\tfor generating configuration file\n\n"
+        "  -h\tdisplay help menu\n"
+        "  -v\tdisplay current version\n");
 
-    } else if (!strcmp(argv[1], "-v")) {
-        printf("verkblogg v1.1");
-    } else {
-        printf("Invalid argument.\n");
-    }
+  } else if (!strcmp(argv[1], "-v")) {
+    printf("verkblogg v1.1.2\n");
+  } else {
+    printf("verkblogg: %s: Invalid argument.\n", argv[1]);
+  }
 
-    return 0;
+  return 0;
 }
