@@ -178,8 +178,7 @@ int parsePostsDb() {
             char articleInformation[1024];
             snprintf(articleInformation, sizeof(articleInformation),
                      "<li><i>%s</i><br><a href='./%s/%s.html'>%s</a></li>\n",
-                     config.compiledpath, splitted_path, splitted_title,
-                     splitted_date);
+                     splitted_date, config.compiledpath, splitted_path, splitted_title);
             strncat(allPosts, articleInformation,
                     sizeof(allPosts) - strlen(allPosts) - 1);
         }
