@@ -5,6 +5,7 @@ artiles/
 verkblogg
 verkblogg.db
 verkblogg.conf
+rss/
 
 # Prerequisites
 *.d

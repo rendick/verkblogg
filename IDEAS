@@ -1,5 +1,6 @@
 - 1. Generating RSS feeds from the DB - [DONE]
 - 2. Command to update current articles according to the DB - [DONE]
-3. Refactor the whole code
-4. Add a new option to the configuration file - 'rsspath'
-5. Add several new useful features to the code (optimization, checks, etc)
+- 3. Refactor the whole code - [DONE]
+- 4. Add a new option to the configuration file - 'rsspath' - [DONE]
+- 5. Add several new useful features to the code (optimization, checks, etc) - [DONE]
+6. Add a feature against similar titles and paths
