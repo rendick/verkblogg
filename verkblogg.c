@@ -46,8 +46,6 @@ generate_rss();
 int
 write_index();
 
-// Article organization
-
 int article_count = 0;
 
 int
@@ -66,13 +64,20 @@ create_post()
 
   replaceAll(title_tl, " ", "-");
 
-  char* forbiddenPathSymbols[13] = { "!", ",", ".", ";", ":", "#", "^",
-                                     "/", "*", "(", ")", "<", ">" };
+  char* forbidden_path_symbols[13] = { "!", ",", ".", ";", ":", "#", "^",
+                                       "/", "*", "(", ")", "<", ">" };
+  char* forbidden_main_symbols[1] = { ";" };
 
-  for (int i = 0; i < (int)sizeof(forbiddenPathSymbols) /
-                        (int)sizeof(forbiddenPathSymbols[0]);
+  for (int i = 0; i < (int)sizeof(forbidden_path_symbols) /
+                        (int)sizeof(forbidden_path_symbols[0]);
        i++) {
-    replaceAll(title_tl, forbiddenPathSymbols[i], "");
+    replaceAll(title_tl, forbidden_path_symbols[i], "");
+  }
+
+  for (int i = 0; i < (int)sizeof(forbidden_main_symbols) /
+                        (int)sizeof(forbidden_main_symbols[0]);
+       i++) {
+    replaceAll(main_content, forbidden_main_symbols[i], "");
   }
 
   FILE* wttf;
@@ -199,23 +204,44 @@ write_index()
   return 0;
 }
 
-void
-write_articles()
-{
-  if (access("articles", 0) != 0) {
-    mkdir("articles", 0777);
+void write_articles() {
+  if (access("articles", F_OK) != 0) {
+    if (mkdir("articles", 0777) != 0) {
+      perror("Failed creating directory.");
+      return;
+    }
   }
 
   for (int i = 0; i < article_count; i++) {
-    char article_path[10000];
+    char article_path[1024];
     snprintf(article_path,
              sizeof(article_path),
              "%s/%s.html",
              config.articlecompiledpath,
              articles[i].path);
 
+    if (access(article_path, F_OK) == 0) {
+      char updated_article_path[1024];
+      snprintf(updated_article_path,
+               sizeof(updated_article_path),
+               "%s/%s-COPY.html",
+               config.articlecompiledpath,
+               articles[i].path);
+      strcpy(article_path, updated_article_path);
+    }
+
+    FILE* read_template_file = fopen(config.articlepath, "r");
+
     FILE* write_article_template = fopen(article_path, "w");
-    fprintf(write_article_template, "%s", articles[i].main);
+
+    char line[MAX_HTML_SIZE];
+    while (fgets(line, sizeof(line), read_template_file) != NULL) {
+      replaceAll(line, "${articleTitle}", articles[i].title);
+      replaceAll(line, "${main}", articles[i].main);
+      fprintf(write_article_template, "%s", line);
+    }
+
+    fclose(read_template_file);
 
     fclose(write_article_template);
   }
