@@ -8,6 +8,9 @@ all: ${TARGET}
 ${TARGET}: ${TARGET}.c
 	${CC} ${CFLAGS} -o ${TARGET} ${TARGET}.c
 
+release: 
+	${CC} -O2 -s -o ${TARGET} ${TARGET}.c
+
 clean:
 	rm ${TARGET}
 
