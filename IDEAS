@@ -4,3 +4,5 @@
 - 4. Add a new option to the configuration file - 'rsspath' - [DONE]
 - 5. Add several new useful features to the code (optimization, checks, etc) - [DONE]
 - 6. Add a feature against similar titles and paths - [DONE]
+- 7. Change ';' separator to '|' in the configuration file - [DONE]
+- 8. Add some extra optimizations - [DONE]
